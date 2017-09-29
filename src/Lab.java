@@ -2,7 +2,6 @@ import java.io.*;
 import java.net.*;
 import java.sql.Connection;
 import java.sql.DriverManager;
-import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -19,7 +18,9 @@ public class Lab {
 
         DB db = new DB();
 
-        for(long i = 2015013915; i <= 2015013915; i++) {
+        long t = System.currentTimeMillis();
+
+        for(long i = 2008009500; i <= 2018000000; i++) {
 
             String param = Long.toString(i);
 
@@ -27,7 +28,29 @@ public class Lab {
 
             CookieHandler.setDefault(new CookieManager(null, CookiePolicy.ACCEPT_ALL));
 
+
             URLConnection connection = new URL(url + "?" + query).openConnection();
+
+            BufferedReader buf = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+            String line = null;
+
+            String warn = "错误";
+            Pattern warnP = Pattern.compile(warn);
+
+
+            int warni = 0;
+            while ((line = buf.readLine()) != null) {
+                Matcher w = warnP.matcher(line);
+                if(w.find())
+                    warni ++;
+            }
+
+            if(warni == 1) {
+                System.out.println("处理" + i + "\t");
+                continue;
+            }
+
+            System.out.print("处理" + i + "\t");
 
             List<String> cookies = connection.getHeaderFields().get("Set-Cookie");
 
@@ -35,42 +58,54 @@ public class Lab {
 
             BufferedReader bufr = new BufferedReader(new InputStreamReader(connection.getInputStream()));
 
-            String line = null;
+//            String line = null;
 
-            String regex = "\\d{17}\\S";
-
+            String Idcard = "\\d{17}\\S";
             String name = "【(\\S+)】";
+            String libnum = "\\s(\\d{8,10})\\b";
 
-            String libnum = "\\d{8}";
+            Pattern IdcardP = Pattern.compile(Idcard);
+            Pattern nameP = Pattern.compile(name);
+            Pattern libnumP = Pattern.compile(libnum);
 
-            Pattern p = Pattern.compile(regex);
+            String IdcardD = null;
+            String nameD = null;
+            String libnumD = null;
 
-            Pattern namep = Pattern.compile(name);
+            int cardflag = 0;
+            int exist = 0;
 
-            Pattern libnume = Pattern.compile(libnum);
-            String realname = null;
-            String libnumeb = null;
-            String Id = null;
             while ((line = bufr.readLine()) != null) {
 //                System.out.println(line);
-                Matcher m = p.matcher(line);
+
+                Matcher m = IdcardP.matcher(line);
                 if (m.find()) {
-                    System.out.println("身份证" + m.group());
-                    Id = m.group();
+                    System.out.print("身份证" + m.group());
+                    IdcardD = m.group();
+                    exist ++;
                 }
-                Matcher n = namep.matcher(line);
+
+                Matcher n = nameP.matcher(line);
                 if (n.find()) {
-                    System.out.print("学号 " + i + "\t" + "姓名" + n.group(1) +"\t");
-                    realname = n.group(1);
+                    System.out.print("学号" + i + "\t" + "姓名" + n.group(1) +"\t");
+                    nameD = n.group(1);
+                    exist ++;
                 }
-                Matcher j = libnume.matcher(line);
-                if(j.find())
-                    libnumeb = j.group();
 
-
+                Matcher j = libnumP.matcher(line);
+                if(j.find()) {
+                    if(cardflag == 1) {
+                        libnumD = j.group(1);
+                        System.out.print("\t" + "卡号" + libnumD + "\t");
+                    }
+                    cardflag ++;
+                    exist ++;
+                }
             }
-            db.insert(i,realname,libnumeb,Id);
+            if(exist >= 2)
+            db.insert(i,nameD,libnumD,IdcardD);
         }
+        System.out.println(System.currentTimeMillis() - t);
     }
 
 }
@@ -100,12 +135,14 @@ class DB {
             stmt = conn.createStatement();
 
             String sql = "INSERT INTO lib " +
-                    "VALUES (" + "134"+",'"+ data2+"'," + data3 +",'"+data4+"')";
-
-            //ensure sql
-//            System.out.println(sql);
+                    "VALUES (" + data1 +",'"+ data2+"'," + data3 +",'"+data4+"')";
 
             stmt.executeUpdate(sql);
+            System.out.println("\t" + "数据库插入成功");
+
+            conn.close();
+            stmt.close();
+
         }
         catch(Exception e){
             //Handle errors for Class.forName
